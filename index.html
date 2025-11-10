@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rabbit Hole</title>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      margin: 0;
+      background-color: #000;
+      color: #fff;
+      font-family: 'Roboto', sans-serif;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    header {
+      padding: 1rem 2rem;
+      border-bottom: 1px solid #222;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    header h1 {
+      font-weight: 400;
+      font-size: 1.2rem;
+      letter-spacing: 2px;
+    }
+
+    nav a {
+      color: #aaa;
+      text-decoration: none;
+      margin-left: 1rem;
+      font-size: 0.9rem;
+      transition: color 0.2s;
+    }
+
+    nav a:hover {
+      color: #fff;
+    }
+
+    main {
+      flex-grow: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 2rem;
+      text-align: center;
+    }
+
+    #sentence {
+      font-size: 1.6rem;
+      line-height: 1.8rem;
+      max-width: 700px;
+      word-wrap: break-word;
+      opacity: 0;
+      transition: opacity 1.5s ease-in;
+    }
+
+    #sentence.visible {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Rabbit Hole</h1>
+    <nav>
+      <a href="#">Home</a>
+      <a href="#">About</a>
+      <a href="#">Archive</a>
+    </nav>
+  </header>
+  <main>
+    <div id="sentence">Loading...</div>
+  </main>
+
+  <script>
+    async function fetchSentence() {
+      const sentenceEl = document.getElementById('sentence');
+      try {
+        const res = await fetch('https://your-webhook-or-endpoint.url');
+        const data = await res.text(); // expecting plain text
+        sentenceEl.textContent = data;
+        sentenceEl.classList.remove('visible');
+        setTimeout(() => sentenceEl.classList.add('visible'), 100);
+      } catch (err) {
+        sentenceEl.textContent = 'Error loading text.';
+        sentenceEl.classList.add('visible');
+      }
+    }
+
+    fetchSentence();
+  </script>
+</body>
+</html>
