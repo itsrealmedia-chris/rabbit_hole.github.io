@@ -11,34 +11,155 @@
     header h1 { font-weight:400; font-size:1.1rem; letter-spacing:2px; }
     nav a { color:#aaa; text-decoration:none; margin-left:1rem; font-size:.9rem; }
     nav a:hover { color:#fff; }
-    main { flex:1; display:flex; justify-content:center; align-items:center; padding:2rem; text-align:center; }
+    main { flex:1; display:flex; flex-direction:column; padding:2rem; gap:2rem; }
+    .container { display:flex; flex-direction:column; gap:2rem; }
+    .left-panel, .right-panel { flex:1; padding:2rem; }
+    .left-panel { display:flex; justify-content:center; align-items:center; text-align:center; }
     #sentence { font-size:1.6rem; line-height:1.9rem; max-width:800px; word-wrap:break-word; opacity:0; transition:opacity 1.2s ease-in; }
     #sentence.visible { opacity:1; }
+    .right-panel { display:flex; flex-direction:column; gap:2rem; }
+    .intro { font-size:0.95rem; line-height:1.6; color:#ccc; max-width:600px; }
+    .intro h2 { font-size:1.1rem; font-weight:400; letter-spacing:1px; margin:0 0 1rem 0; color:#fff; }
+    #viz-container { min-height:300px; display:flex; justify-content:center; align-items:center; }
+    @media (min-width: 1024px) {
+      .container { flex-direction:row; }
+      .left-panel, .right-panel { border-right:1px solid #222; }
+      .right-panel { border-right:none; }
+    }
   </style>
 </head>
 <body>
   <header>
     <h1>Rabbit Hole</h1>
-    <nav><a href="#">Home</a><a href="#">About</a></nav>
   </header>
   <main>
-    <div id="sentence">Loading...</div>
+    <div class="container">
+      <div class="left-panel">
+        <div id="sentence">Loading...</div>
+      </div>
+      <div class="right-panel">
+        <div class="intro">
+          <h2>Rabbit Hole Gpt 5 - mini</h2>
+          <p>RabbitHole is an experiment in continuous linguistic prediction.</p>
+          <p>With each iteration, the model adds one word, tracing a spiral through semantic space.</p>
+          <p>Over time, its trajectory may collapse into entropy, crystallize into coherence, or turn inward toward self-reflection.</p>
+          <p>We observe it to study how prediction becomes structure, and how memory arises within computation.</p>
+          <p>The result is a visible record of language thinking itself — one vector at a time.</p>
+        </div>
+        <div id="viz-container"></div>
+      </div>
+    </div>
   </main>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script>
+    let currentSentence = '';
+    let currentPointCount = 0;
+    let scene, camera, renderer, group;
+
     async function fetchSentence() {
       const el = document.getElementById('sentence');
       try {
         const res = await fetch('/sentence', { cache: 'no-store' });
         const text = await res.text();
-        el.textContent = text.trim();
+        if (text.trim() !== currentSentence) {
+          currentSentence = text.trim();
+          el.textContent = currentSentence;
+          el.classList.remove('visible');
+          setTimeout(() => el.classList.add('visible'), 80);
+        }
       } catch {
         el.textContent = 'Error loading text.';
       }
-      el.classList.remove('visible');
-      setTimeout(() => el.classList.add('visible'), 80);
     }
     fetchSentence();
+
+    async function updateVisualization() {
+      const points = await (await fetch('/vectors3d', {cache:'no-store'})).json();
+      
+      if (!points.length || points.length === currentPointCount) {
+        return;
+      }
+
+      currentPointCount = points.length;
+
+      if (!scene) {
+        initScene();
+      }
+
+      while(group.children.length > 0) {
+        group.remove(group.children[0]);
+      }
+
+      const xs = points.map(p=>p.xyz[0]), ys = points.map(p=>p.xyz[1]), zs = points.map(p=>p.xyz[2]||0);
+      const maxAbs = Math.max(...xs.map(Math.abs), ...ys.map(Math.abs), ...zs.map(Math.abs)) || 1;
+      const scale = 100 / maxAbs;
+
+      const verts = new Float32Array(points.length * 3);
+      for (let i=0;i<points.length;i++){
+        const [x,y,z] = points[i].xyz.map(v=>v*scale);
+        verts[i*3+0]=x; verts[i*3+1]=y; verts[i*3+2]=z;
+        
+        const t = i / (points.length - 1 || 1);
+        const hue = t * 0.6;
+        const color = new THREE.Color().setHSL(hue, 0.8, 0.5);
+        const sphereGeom = new THREE.SphereGeometry(3, 16, 16);
+        const sphereMat = new THREE.MeshBasicMaterial({ color: color });
+        const sphere = new THREE.Mesh(sphereGeom, sphereMat);
+        sphere.position.set(x, y, z);
+        group.add(sphere);
+      }
+
+      const lineGeom = new THREE.BufferGeometry();
+      lineGeom.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+      const lineMat = new THREE.LineBasicMaterial({ color: 0x666666, opacity: 0.5, transparent: true });
+      const line = new THREE.Line(lineGeom, lineMat);
+      group.add(line);
+    }
+
+    function initScene() {
+      if (typeof THREE === 'undefined') {
+        console.error('THREE.js not loaded');
+        return;
+      }
+
+      const container = document.getElementById('viz-container');
+      const w = Math.min(600, container.clientWidth || 600);
+      const h = 300;
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(45, w/h, 0.1, 1000);
+      renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+      renderer.setSize(w, h);
+      container.appendChild(renderer.domElement);
+
+      group = new THREE.Group();
+      scene.add(group);
+
+      camera.position.z = 220;
+      
+      function animate(){ 
+        requestAnimationFrame(animate); 
+        group.rotation.y += 0.005;
+        group.rotation.x += 0.002;
+        renderer.render(scene, camera); 
+      }
+      animate();
+    }
+
+    async function pollForUpdates() {
+      await fetchSentence();
+      await updateVisualization();
+    }
+    
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => {
+        pollForUpdates();
+        setInterval(pollForUpdates, 3000);
+      });
+    } else {
+      pollForUpdates();
+      setInterval(pollForUpdates, 3000);
+    }
   </script>
 </body>
 </html>
